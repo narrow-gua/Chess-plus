@@ -19,4 +19,13 @@ public class InitItems {
                     new Item.Properties() // 物品基础属性
             )
     );
+
+    public static final RegistryObject<Item> CCHESS_PVP_ITEM = ITEMS.register(
+            "cchess_pvp", // 与方块同名
+            () -> new BlockItem(
+                    InitBlocks.CCHESS_PVP.get(), // 指向已注册的方块
+                    new Item.Properties() // 物品基础属性
+            )
+    );
+
 }

@@ -1,8 +1,10 @@
 package com.cookie.chess.renderer.tileenity;
 
+import com.cookie.chess.block.BlockCChessPVP;
 import com.cookie.chess.tileentity.TileEntityCChessPVP;
 import com.github.tartaricacid.touhoulittlemaid.TouhouLittleMaid;
 import com.github.tartaricacid.touhoulittlemaid.api.game.xqwlight.Position;
+import com.github.tartaricacid.touhoulittlemaid.block.BlockCChess;
 import com.github.tartaricacid.touhoulittlemaid.block.BlockGomoku;
 import com.github.tartaricacid.touhoulittlemaid.client.model.CChessPiecesModel;
 import com.github.tartaricacid.touhoulittlemaid.client.model.bedrock.SimpleBedrockModel;
@@ -49,7 +51,7 @@ public class TileEntityCChessPVPRenderer  implements BlockEntityRenderer<TileEnt
 
     @Override
     public void render(TileEntityCChessPVP cchess, float pPartialTick, PoseStack poseStack, MultiBufferSource bufferIn, int combinedLightIn, int combinedOverlayIn) {
-        Direction facing = cchess.getBlockState().getValue(BlockGomoku.FACING);
+        Direction facing = cchess.getBlockState().getValue(BlockCChessPVP.FACING);
         this.renderChessboard(poseStack, bufferIn, combinedLightIn, combinedOverlayIn, facing);
         this.renderPiece(cchess, poseStack, bufferIn, combinedLightIn, combinedOverlayIn, facing);
         this.renderTipsText(cchess, poseStack, bufferIn, combinedLightIn);

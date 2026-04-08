@@ -1,6 +1,7 @@
 package com.cookie.chess.init;
 
 import com.cookie.chess.ChessPlus;
+import com.cookie.chess.tileentity.TileEntityCChessPVP;
 import com.cookie.chess.tileentity.TileEntityGomokuPVP;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.registries.DeferredRegister;
@@ -15,6 +16,11 @@ public class InitEntities {
     public static final RegistryObject<BlockEntityType<TileEntityGomokuPVP>> GOMOKU_PVP =
             BLOCK_ENTITIES.register("gomoku_pvp", () ->
                     BlockEntityType.Builder.of(TileEntityGomokuPVP::new, InitBlocks.GOMOKU_PVP.get()).build(null));
+
+
+    public static final RegistryObject<BlockEntityType<TileEntityCChessPVP>> CCHESS_PVP =
+            BLOCK_ENTITIES.register("cchess_pvp", () ->
+                    BlockEntityType.Builder.of(TileEntityCChessPVP::new, InitBlocks.CCHESS_PVP.get()).build(null));
 
 
 }

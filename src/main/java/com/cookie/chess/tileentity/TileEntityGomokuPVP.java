@@ -24,8 +24,12 @@ import java.util.UUID;
 
 
 public class TileEntityGomokuPVP extends BlockEntity {
+    private static final String TAG_IS_BLACK_TURN = "IsBlackTurn";
+    private static final String TAG_IS_BLACK_TURN_LEGACY = "IsBackTurn";
+    private static final int BOARD_SIZE = 15;
+    private static final int MAX_CHESS_COUNT = BOARD_SIZE * BOARD_SIZE;
 
-    private int[][] chessData = new int[15][15];
+    private int[][] chessData = new int[BOARD_SIZE][BOARD_SIZE];
     public UUID playerBlack;
     public UUID playerWhite;
     public boolean isBlackTurn = true;
@@ -50,7 +54,7 @@ public class TileEntityGomokuPVP extends BlockEntity {
             int[] chessRow = var3[var5];
             listTag.add(new IntArrayTag(chessRow));
         }
-        this.getPersistentData().putBoolean("IsBackTurn", isBlackTurn);
+        this.getPersistentData().putBoolean(TAG_IS_BLACK_TURN, isBlackTurn);
         this.getPersistentData().putInt("Winner", winner);
         this.getPersistentData().put("ChessData", listTag);
         this.getPersistentData().putBoolean("InProgress", this.inProgress);
@@ -104,7 +108,11 @@ public class TileEntityGomokuPVP extends BlockEntity {
         this.playerBlack = blackStr.isEmpty() ? null : UUID.fromString(blackStr);
         this.winner = this.getPersistentData().getInt("Winner");
         this.inProgress = this.getPersistentData().getBoolean("InProgress");
-        this.isBlackTurn = this.getPersistentData().getBoolean("IsBlackTurn");
+        if (this.getPersistentData().contains(TAG_IS_BLACK_TURN)) {
+            this.isBlackTurn = this.getPersistentData().getBoolean(TAG_IS_BLACK_TURN);
+        } else {
+            this.isBlackTurn = this.getPersistentData().getBoolean(TAG_IS_BLACK_TURN_LEGACY);
+        }
         this.chessCounter = this.getPersistentData().getInt("ChessCounter");
         this.latestChessPoint = Point.fromTag(this.getPersistentData().getCompound("LatestChessPoint"));
     }
@@ -119,6 +127,10 @@ public class TileEntityGomokuPVP extends BlockEntity {
             return true;
         }
         return false;
+    }
+
+    public boolean isPlayerRegistered(UUID player) {
+        return player.equals(playerBlack) || player.equals(playerWhite);
     }
 
 
@@ -157,6 +169,10 @@ public class TileEntityGomokuPVP extends BlockEntity {
         return this.chessCounter;
     }
 
+    public boolean isBoardFull() {
+        return this.chessCounter >= MAX_CHESS_COUNT;
+    }
+
     public Point getLatestChessPoint() {
         return this.latestChessPoint;
     }
@@ -168,11 +184,11 @@ public class TileEntityGomokuPVP extends BlockEntity {
 
 
     public void reset() {
-        this.chessData = new int[15][15];
+        this.chessData = new int[BOARD_SIZE][BOARD_SIZE];
         this.inProgress = true;
         this.isBlackTurn = true;
-        this.playerWhite = UUID.fromString("") ;
-        this.playerBlack = UUID.fromString("") ;
+        this.playerWhite = null;
+        this.playerBlack = null;
         this.winner = 0;
         this.chessCounter = 0;
         this.latestChessPoint = Point.NULL;

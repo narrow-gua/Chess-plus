@@ -129,8 +129,8 @@ public class TileEntityGomokuPVPRenderer implements BlockEntityRenderer<TileEnti
                 loseTips = Component.translatable("message.chessplus.gomoku_blackwin").withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.DARK_PURPLE);
             } else if (gomoku.winner == 2) {
                 loseTips = Component.translatable("message.chessplus.gomoku_whitewin").withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.DARK_PURPLE);
-            }else {
-                return;
+            } else {
+                loseTips = Component.literal("平局").withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.DARK_PURPLE);
             }
             float loseTipsWidth = (float)(-this.font.width(loseTips) / 2);
             float resetTipsWidth = (float)(-this.font.width(resetTips) / 2);

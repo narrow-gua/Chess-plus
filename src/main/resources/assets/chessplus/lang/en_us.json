@@ -1,5 +1,6 @@
 {
   "block.chessplus.gomoku_pvp": "gomoku pvp",
+  "block.chessplus.cchess_pvp": "cchess pvp",
   "message.chessplus.gomoku_blackwin": "黑棋玩家胜利",
   "message.chessplus.gomoku_whitewin": "白棋玩家胜利"
 }

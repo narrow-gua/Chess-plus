@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "chessplus:block/cchess_pvp"
+    }
+  }
+}

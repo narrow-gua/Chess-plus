@@ -1,5 +1,6 @@
 package com.cookie.chess.tileentity;
 
+import com.cookie.chess.init.InitEntities;
 import com.github.tartaricacid.touhoulittlemaid.api.game.xqwlight.Position;
 import com.github.tartaricacid.touhoulittlemaid.init.InitBlocks;
 import com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityCChess;
@@ -15,7 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.UUID;
 
 public class TileEntityCChessPVP extends BlockEntity {
-    public static final BlockEntityType<TileEntityCChess> TYPE = BlockEntityType.Builder.of(TileEntityCChess::new, InitBlocks.CCHESS.get()).build(null);
+    public static final BlockEntityType<TileEntityCChessPVP> TYPE = InitEntities.CCHESS_PVP.get();
 
     private static final String CHESS_DATA = "ChessData";
     private static final String CHESS_COUNTER = "ChessCounter";

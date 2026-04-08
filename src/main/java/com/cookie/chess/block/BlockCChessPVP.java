@@ -3,7 +3,9 @@ package com.cookie.chess.block;
 import com.cookie.chess.tileentity.TileEntityCChessPVP;
 import com.github.tartaricacid.touhoulittlemaid.api.game.xqwlight.Position;
 import com.github.tartaricacid.touhoulittlemaid.block.properties.GomokuPart;
+import com.github.tartaricacid.touhoulittlemaid.init.InitItems;
 import com.github.tartaricacid.touhoulittlemaid.init.InitSounds;
+import com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityCChess;
 import com.github.tartaricacid.touhoulittlemaid.util.CChessUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -20,10 +22,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.BaseEntityBlock;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -48,7 +47,7 @@ public class BlockCChessPVP extends BaseEntityBlock {
 
     public BlockCChessPVP() {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.WOOD).sound(SoundType.WOOD).strength(2.0F, 3.0F).forceSolidOn().noOcclusion());
-        this.registerDefaultState(this.stateDefinition.any().setValue(PART, GomokuPart.CENTER));
+        this.registerDefaultState(this.stateDefinition.any().setValue(PART, GomokuPart.CENTER).setValue(FACING, Direction.NORTH));
     }
 
     @Override
@@ -209,7 +208,7 @@ public class BlockCChessPVP extends BaseEntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(PART);
+        builder.add(PART, FACING);
     }
 
     @Nullable
@@ -232,4 +231,24 @@ public class BlockCChessPVP extends BaseEntityBlock {
     }
 
 
+
+
+    private static void handleCChessRemove(Level world, BlockPos pos, BlockState state) {
+        if (!world.isClientSide) {
+            GomokuPart part = state.getValue(PART);
+            BlockPos centerPos = pos.subtract(new Vec3i(part.getPosX(), 0, part.getPosY()));
+            BlockEntity te = world.getBlockEntity(centerPos);
+            popResource(world, centerPos, InitItems.CCHESS.get().getDefaultInstance());
+            if (te instanceof TileEntityCChess) {
+                for (int i = -1; i < 2; i++) {
+                    for (int j = -1; j < 2; j++) {
+                        world.setBlockAndUpdate(centerPos.offset(i, 0, j), Blocks.AIR.defaultBlockState());
+                    }
+                }
+            }
+        }
+    }
+
 }
+
+

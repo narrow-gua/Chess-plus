@@ -240,11 +240,6 @@ public class BlockGomokuPVP extends BaseEntityBlock {
 
             if (!(te instanceof TileEntityGomokuPVP gomoku)) return InteractionResult.FAIL;
 
-            UUID playerId = player.getUUID();
-            if (!gomoku.registerPlayer(playerId) && !gomoku.isPlayerTurn(playerId)) {
-                player.sendSystemMessage(Component.literal("不是你的回合或游戏已满"));
-                return InteractionResult.FAIL;
-            }
 
             Vec3 location = hit.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
             Direction facing = state.getValue(FACING);
@@ -255,6 +250,25 @@ public class BlockGomokuPVP extends BaseEntityBlock {
                 gomoku.refresh();
                 return InteractionResult.SUCCESS;
             }
+
+            if (!gomoku.isInProgress()) {
+                player.sendSystemMessage(Component.literal("游戏已结束，请先重置棋盘。"));
+                return InteractionResult.FAIL;
+            }
+
+            UUID playerId = player.getUUID();
+            if (!gomoku.isPlayerRegistered(playerId) && !gomoku.registerPlayer(playerId)) {
+                player.sendSystemMessage(Component.literal("当前对局人数已满。"));
+                return InteractionResult.FAIL;
+            }
+            if (!gomoku.isPlayerTurn(playerId)) {
+                player.sendSystemMessage(Component.literal("还没轮到你落子。"));
+                return InteractionResult.FAIL;
+            }
+//            if (false && !gomoku.registerPlayer(playerId) && !gomoku.isPlayerTurn(playerId)) {
+//                player.sendSystemMessage(Component.literal("不是你的回合或游戏已满"));
+//                return InteractionResult.FAIL;
+//            }
 
             int[] clickPos = getChessPos(location.x, location.z, part);
             if (clickPos == null){
@@ -293,6 +307,18 @@ public class BlockGomokuPVP extends BaseEntityBlock {
                     loser.sendSystemMessage(Component.literal("不要灰心，再接再厉！"));
                 }
 
+            } else if (gomoku.isBoardFull()) {
+                gomoku.setInProgress(false);
+                gomoku.winner = 0;
+
+                Player blackPlayer = gomoku.playerBlack == null ? null : serverLevel.getPlayerByUUID(gomoku.playerBlack);
+                Player whitePlayer = gomoku.playerWhite == null ? null : serverLevel.getPlayerByUUID(gomoku.playerWhite);
+                if (blackPlayer != null) {
+                    blackPlayer.sendSystemMessage(Component.literal("本局平局。"));
+                }
+                if (whitePlayer != null) {
+                    whitePlayer.sendSystemMessage(Component.literal("本局平局。"));
+                }
             } else {
                 gomoku.switchTurn();
             }
