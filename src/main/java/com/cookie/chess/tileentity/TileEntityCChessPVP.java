@@ -2,16 +2,13 @@ package com.cookie.chess.tileentity;
 
 import com.cookie.chess.init.InitEntities;
 import com.github.tartaricacid.touhoulittlemaid.api.game.xqwlight.Position;
-import com.github.tartaricacid.touhoulittlemaid.init.InitBlocks;
-import com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityCChess;
 import com.github.tartaricacid.touhoulittlemaid.util.CChessUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockState;
-
 
 import java.util.UUID;
 
@@ -24,18 +21,18 @@ public class TileEntityCChessPVP extends BlockEntity {
     private static final String CHECKMATE = "Checkmate";
     private static final String REPEAT = "Repeat";
     private static final String MOVE_NUMBER_LIMIT = "MoveNumberLimit";
+    private static final String PLAYER_RED = "PlayerRed";
+    private static final String PLAYER_BLACK = "PlayerBlack";
 
-    private UUID playerRed; // 红方玩家
-    private UUID playerBlack; // 黑方玩家
-    private boolean isRedTurn = true; // 当前是否为红方回合
+    private UUID playerRed;
+    private UUID playerBlack;
 
-
-    private Position chessData;
+    private final Position chessData;
 
     // 回合计数器
     private int chessCounter = 0;
     // 当前选中的棋子
-    private int selectChessPoint = 0;
+    private int selectChessPoint = -1;
     // 将死（依据下棋方，判断谁输谁赢）
     private boolean checkmate = false;
     // 长打（判和）
@@ -45,11 +42,14 @@ public class TileEntityCChessPVP extends BlockEntity {
 
     public TileEntityCChessPVP(BlockPos pos, BlockState blockState) {
         super(TYPE, pos, blockState);
-        this.chessData = new com.github.tartaricacid.touhoulittlemaid.api.game.xqwlight.Position();
+        this.chessData = new Position();
         this.chessData.fromFen(CChessUtil.INIT);
     }
 
     public boolean registerPlayer(UUID playerId) {
+        if (playerId == null) {
+            return false;
+        }
         if (playerRed == null) {
             playerRed = playerId;
             return true;
@@ -61,22 +61,26 @@ public class TileEntityCChessPVP extends BlockEntity {
     }
 
     public boolean isPlayerRegistered(UUID playerId) {
+        if (playerId == null) {
+            return false;
+        }
         return playerId.equals(playerRed) || playerId.equals(playerBlack);
     }
 
-    // 检查是否是当前玩家的回合
+    // 检查是否是当前玩家的回合：以棋局引擎内的 sdPlayer 为唯一真相
     public boolean isPlayerTurn(UUID playerId) {
+        if (playerId == null) {
+            return false;
+        }
+
+        boolean isRedTurn = CChessUtil.isPlayer(this.chessData);
         if (playerId.equals(playerRed)) {
             return isRedTurn;
-        } else if (playerId.equals(playerBlack)) {
+        }
+        if (playerId.equals(playerBlack)) {
             return !isRedTurn;
         }
         return false;
-    }
-
-    // 切换回合
-    public void switchTurn() {
-        isRedTurn = !isRedTurn;
     }
 
     @Override
@@ -88,6 +92,19 @@ public class TileEntityCChessPVP extends BlockEntity {
         data.putBoolean(CHECKMATE, checkmate);
         data.putBoolean(REPEAT, repeat);
         data.putBoolean(MOVE_NUMBER_LIMIT, moveNumberLimit);
+
+        if (playerRed != null) {
+            data.putUUID(PLAYER_RED, playerRed);
+        } else {
+            data.remove(PLAYER_RED);
+        }
+
+        if (playerBlack != null) {
+            data.putUUID(PLAYER_BLACK, playerBlack);
+        } else {
+            data.remove(PLAYER_BLACK);
+        }
+
         super.saveAdditional(tag);
     }
 
@@ -95,17 +112,27 @@ public class TileEntityCChessPVP extends BlockEntity {
     public void load(CompoundTag nbt) {
         super.load(nbt);
         CompoundTag data = getPersistentData();
+
         chessCounter = data.getInt(CHESS_COUNTER);
-        selectChessPoint = data.getInt(SELECT_CHESS_POINT);
-        chessData.fromFen(data.getString(CHESS_DATA));
+        selectChessPoint = data.contains(SELECT_CHESS_POINT) ? data.getInt(SELECT_CHESS_POINT) : -1;
+
+        String fen = data.getString(CHESS_DATA);
+        if (fen == null || fen.isEmpty()) {
+            fen = CChessUtil.INIT;
+        }
+        chessData.fromFen(fen);
+
         checkmate = data.getBoolean(CHECKMATE);
         repeat = data.getBoolean(REPEAT);
         moveNumberLimit = data.getBoolean(MOVE_NUMBER_LIMIT);
+
+        playerRed = data.hasUUID(PLAYER_RED) ? data.getUUID(PLAYER_RED) : null;
+        playerBlack = data.hasUUID(PLAYER_BLACK) ? data.getUUID(PLAYER_BLACK) : null;
     }
 
     public void reset() {
         this.chessCounter = 0;
-        this.selectChessPoint = 0;
+        this.selectChessPoint = -1;
         this.chessData.fromFen(CChessUtil.INIT);
         this.checkmate = false;
         this.repeat = false;
@@ -159,6 +186,7 @@ public class TileEntityCChessPVP extends BlockEntity {
     public void setMoveNumberLimit(boolean moveNumberLimit) {
         this.moveNumberLimit = moveNumberLimit;
     }
+
     public void refresh() {
         this.setChanged();
         if (level != null) {
@@ -168,14 +196,18 @@ public class TileEntityCChessPVP extends BlockEntity {
     }
 
     public boolean canPlayerControlPiece(UUID playerId, byte piece) {
-        if (piece == 0) return false; // 空位置
+        if (playerId == null || piece == 0) {
+            return false;
+        }
 
         boolean isRedPiece = CChessUtil.isRed(piece);
-        boolean isRedPlayer = playerId.equals(playerRed);
+        if (playerId.equals(playerRed)) {
+            return isRedPiece;
+        }
+        if (playerId.equals(playerBlack)) {
+            return !isRedPiece;
+        }
 
-        // 红方玩家只能操作红子，黑方玩家只能操作黑子
-        return (isRedPiece && isRedPlayer) || (!isRedPiece && !isRedPlayer);
+        return false;
     }
-
-
 }

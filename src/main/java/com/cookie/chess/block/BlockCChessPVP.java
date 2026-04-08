@@ -1,11 +1,10 @@
 package com.cookie.chess.block;
 
+import com.cookie.chess.init.InitItems;
 import com.cookie.chess.tileentity.TileEntityCChessPVP;
 import com.github.tartaricacid.touhoulittlemaid.api.game.xqwlight.Position;
 import com.github.tartaricacid.touhoulittlemaid.block.properties.GomokuPart;
-import com.github.tartaricacid.touhoulittlemaid.init.InitItems;
 import com.github.tartaricacid.touhoulittlemaid.init.InitSounds;
-import com.github.tartaricacid.touhoulittlemaid.tileentity.TileEntityCChess;
 import com.github.tartaricacid.touhoulittlemaid.util.CChessUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -20,9 +19,15 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.BaseEntityBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -50,6 +55,21 @@ public class BlockCChessPVP extends BaseEntityBlock {
         this.registerDefaultState(this.stateDefinition.any().setValue(PART, GomokuPart.CENTER).setValue(FACING, Direction.NORTH));
     }
 
+    @Nullable
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        BlockPos centerPos = context.getClickedPos();
+        for (int i = -1; i < 2; i++) {
+            for (int j = -1; j < 2; j++) {
+                BlockPos searchPos = centerPos.offset(i, 0, j);
+                if (!context.getLevel().getBlockState(searchPos).canBeReplaced(context)) {
+                    return null;
+                }
+            }
+        }
+        return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
         if (!(level instanceof ServerLevel) || hand != InteractionHand.MAIN_HAND) {
@@ -73,13 +93,8 @@ public class BlockCChessPVP extends BaseEntityBlock {
                 return InteractionResult.FAIL;
             } else {
                 player.sendSystemMessage(Component.literal("你已加入游戏！"));
+                chess.refresh();
             }
-        }
-
-        // 检查是否是当前玩家的回合
-        if (!chess.isPlayerTurn(playerId)) {
-            player.sendSystemMessage(Component.literal("不是你的回合！"));
-            return InteractionResult.FAIL;
         }
 
         Direction facing = state.getValue(FACING);
@@ -89,13 +104,23 @@ public class BlockCChessPVP extends BaseEntityBlock {
                 .yRot(facing.toYRot() * Mth.DEG_TO_RAD);
 
         // 重置棋盘逻辑
-        boolean clickResetArea = CChessUtil.isClickResetArea(clickPos);
-        if (clickResetArea) {
+        if (CChessUtil.isClickResetArea(clickPos)) {
             chess.reset();
             chess.refresh();
             level.playSound(null, centerPos, InitSounds.GOMOKU_RESET.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
             player.sendSystemMessage(Component.literal("棋盘已重置！"));
             return InteractionResult.SUCCESS;
+        }
+
+        if (chess.isCheckmate()) {
+            player.sendSystemMessage(Component.literal("游戏已结束，请先重置棋盘！"));
+            return InteractionResult.FAIL;
+        }
+
+        // 检查是否是当前玩家的回合
+        if (!chess.isPlayerTurn(playerId)) {
+            player.sendSystemMessage(Component.literal("不是你的回合！"));
+            return InteractionResult.FAIL;
         }
 
         // 获取点击位置
@@ -123,7 +148,6 @@ public class BlockCChessPVP extends BaseEntityBlock {
 
         // 1. 如果之前没有选中棋子
         if (preClick < 0) {
-            // 检查玩家是否可以操作该棋子
             if (chess.canPlayerControlPiece(playerId, nowPiece)) {
                 chess.setSelectChessPoint(nowClick);
                 chess.refresh();
@@ -139,6 +163,14 @@ public class BlockCChessPVP extends BaseEntityBlock {
         // 2. 如果之前已选中棋子
         byte prePiece = squares[preClick];
 
+        // 兜底：已选中的棋子不属于当前玩家，清空选中并提示重选
+        if (!chess.canPlayerControlPiece(playerId, prePiece)) {
+            chess.setSelectChessPoint(-1);
+            chess.refresh();
+            player.sendSystemMessage(Component.literal("请先选择己方棋子！"));
+            return InteractionResult.FAIL;
+        }
+
         // 检查是否点击了自己的其他棋子（切换选中）
         if (chess.canPlayerControlPiece(playerId, nowPiece)) {
             chess.setSelectChessPoint(nowClick);
@@ -153,57 +185,81 @@ public class BlockCChessPVP extends BaseEntityBlock {
 
         // 验证移动是否合法
         if (!chessData.legalMove(move)) {
-            player.sendSystemMessage(Component.literal("非法移动！"));
+            player.sendSystemMessage(Component.literal("违反规则，无法这样走子！"));
             return InteractionResult.FAIL;
         }
 
         // 执行移动
         boolean moveSuccess = chessData.makeMove(move);
-        if (moveSuccess) {
-            // 更新游戏状态
-            if (chessData.captured()) {
-                chessData.setIrrev(); // 标记不可逆状态
-            }
-
-            // 切换回合
-            chess.switchTurn();
-            chess.setSelectChessPoint(-1); // 清除选中
-            chess.addChessCounter();
-            chess.refresh();
-
-            // 播放音效和通知
-            level.playSound(null, pos, InitSounds.GOMOKU.get(), SoundSource.BLOCKS, 1.0f, 0.8F + level.random.nextFloat() * 0.4F);
-            player.sendSystemMessage(Component.literal("移动成功！"));
-
-            // 检查游戏结束条件
-            if (chess.isCheckmate()) {
-                level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-                level.players().forEach(p ->
-                        p.sendSystemMessage(Component.literal("游戏结束！" + player.getName().getString() + "获胜！"))
-                );
-//                chess.setInProgress(false);
-            }
-
-            return InteractionResult.SUCCESS;
-        } else {
-            player.sendSystemMessage(Component.literal("移动失败！"));
+        if (!moveSuccess) {
+            player.sendSystemMessage(Component.literal("这步会导致被将军，无法移动！"));
             return InteractionResult.FAIL;
         }
+
+        // 更新游戏状态
+        if (chessData.captured()) {
+            chessData.setIrrev();
+        }
+
+        chess.addChessCounter();
+        chess.setSelectChessPoint(-1);
+
+        boolean isCheckmate = chessData.isMate();
+        chess.setCheckmate(isCheckmate);
+        chess.setMoveNumberLimit(false);
+        chess.setRepeat(false);
+        if (!isCheckmate) {
+            if (CChessUtil.reachMoveLimit(chessData)) {
+                chess.setMoveNumberLimit(true);
+            } else if (CChessUtil.isRepeat(chessData)) {
+                chess.setRepeat(true);
+            }
+        }
+
+        chess.refresh();
+
+        // 播放音效和通知
+        level.playSound(null, pos, InitSounds.GOMOKU.get(), SoundSource.BLOCKS, 1.0f, 0.8F + level.random.nextFloat() * 0.4F);
+        player.sendSystemMessage(Component.literal("移动成功！"));
+
+        // 检查游戏结束条件
+        if (isCheckmate) {
+            level.playSound(null, pos, SoundEvents.NOTE_BLOCK_BELL.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+            level.players().forEach(p ->
+                    p.sendSystemMessage(Component.literal("游戏结束！" + player.getName().getString() + "获胜！"))
+            );
+        }
+
+        return InteractionResult.SUCCESS;
     }
 
     @Override
     public void setPlacedBy(Level worldIn, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
-        if (!worldIn.isClientSide) {
-            for (int i = -1; i < 2; i++) {
-                for (int j = -1; j < 2; j++) {
-                    BlockPos searchPos = pos.offset(i, 0, j);
-                    GomokuPart part = GomokuPart.getPartByPos(i, j);
-                    if (part != null && !part.isCenter()) {
-                        worldIn.setBlock(searchPos, state.setValue(PART, part), Block.UPDATE_ALL);
-                    }
+        super.setPlacedBy(worldIn, pos, state, placer, stack);
+        if (worldIn.isClientSide) {
+            return;
+        }
+        for (int i = -1; i < 2; i++) {
+            for (int j = -1; j < 2; j++) {
+                BlockPos searchPos = pos.offset(i, 0, j);
+                GomokuPart part = GomokuPart.getPartByPos(i, j);
+                if (part != null && !part.isCenter()) {
+                    worldIn.setBlock(searchPos, state.setValue(PART, part), Block.UPDATE_ALL);
                 }
             }
         }
+    }
+
+    @Override
+    public void playerWillDestroy(Level world, BlockPos pos, BlockState state, Player player) {
+        handleCChessRemove(world, pos, state);
+        super.playerWillDestroy(world, pos, state, player);
+    }
+
+    @Override
+    public void onBlockExploded(BlockState state, Level world, BlockPos pos, Explosion explosion) {
+        handleCChessRemove(world, pos, state);
+        super.onBlockExploded(state, world, pos, explosion);
     }
 
     @Override
@@ -230,16 +286,13 @@ public class BlockCChessPVP extends BaseEntityBlock {
         return AABB;
     }
 
-
-
-
     private static void handleCChessRemove(Level world, BlockPos pos, BlockState state) {
         if (!world.isClientSide) {
             GomokuPart part = state.getValue(PART);
             BlockPos centerPos = pos.subtract(new Vec3i(part.getPosX(), 0, part.getPosY()));
             BlockEntity te = world.getBlockEntity(centerPos);
-            popResource(world, centerPos, InitItems.CCHESS.get().getDefaultInstance());
-            if (te instanceof TileEntityCChess) {
+            popResource(world, centerPos, InitItems.CCHESS_PVP_ITEM.get().getDefaultInstance());
+            if (te instanceof TileEntityCChessPVP) {
                 for (int i = -1; i < 2; i++) {
                     for (int j = -1; j < 2; j++) {
                         world.setBlockAndUpdate(centerPos.offset(i, 0, j), Blocks.AIR.defaultBlockState());
@@ -248,7 +301,4 @@ public class BlockCChessPVP extends BaseEntityBlock {
             }
         }
     }
-
 }
-
-
